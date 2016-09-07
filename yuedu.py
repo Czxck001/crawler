@@ -2,22 +2,10 @@
 '''
 import os
 import re
+import json
 import requests
 
 import argparse
-parser = argparse.ArgumentParser('yuedu.fm Crawler')
-# parser.add_argument('-c', '--channels', type=int, nargs='*',
-#                     help='Channel indexes')
-# parser.add_argument('-p', '--max_page', type=int,
-#                     help='Max page index')
-parser.add_argument('-a', '--articles', type=int, nargs='*',
-                    help='Artical indexes')
-parser.add_argument('-m', '--max_article', type=int, default=0,
-                    help='Max Artical index')
-parser.add_argument('-o', '--output_dir',
-                    help='Output Folder Directory')
-
-FLAGS = parser.parse_args()
 
 root = r'http://yuedu.fm'
 channel_root = root + r'/channel/'
@@ -100,26 +88,50 @@ def article_page(page_url):
 # print(article)
 # exit()
 
-if FLAGS.max_article > 0:
-    indexes = range(1, FLAGS.max_article + 1)
-else:
-    indexes = FLAGS.articles
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser('yuedu.fm Crawler')
+    # parser.add_argument('-c', '--channels', type=int, nargs='*',
+    #                     help='Channel indexes')
+    # parser.add_argument('-p', '--max_page', type=int,
+    #                     help='Max page index')
+    parser.add_argument('-a', '--articles', type=int, nargs='*',
+                        help='Article indexes')
+    parser.add_argument('-r', '--article_range', type=int, nargs=2,
+                        default=[0, 0],
+                        help='Article indexes range (closed)')
+    parser.add_argument('-o', '--output_dir',
+                        help='Output Folder Directory')
 
-N = len(indexes)
+    FLAGS = parser.parse_args()
 
+    if FLAGS.articles:
+        indexes = FLAGS.articles
+    else:
+        l, r = FLAGS.article_range
+        indexes = range(l, r + 1)
 
-if not os.path.isdir(FLAGS.output_dir):
-    os.mkdir(FLAGS.output_dir)
+    N = len(indexes)
 
-for k, i in enumerate(indexes):
-    article, mp3_url = article_page(article_root + '%d/' % i)
+    if not os.path.isdir(FLAGS.output_dir):
+        os.mkdir(FLAGS.output_dir)
 
-    if not article or not mp3_url:
-        print('Page Not Found at article %d' % i)
-        continue
+    down_params = []
+    for k, i in enumerate(indexes):
+        article, mp3_url = article_page(article_root + '%d/' % i)
 
-    with open(os.path.join(FLAGS.output_dir, '%d.txt' % i), 'w') as f:
-        f.write(article)
-    with open(os.path.join(FLAGS.output_dir, '%d.url' % i), 'w') as f:
-        f.write(root + mp3_url)
-    print(k + 1, '/', N, end='\r')
+        if not article or not mp3_url:
+            print('Page Not Found at article %d' % i)
+            continue
+
+        with open(os.path.join(FLAGS.output_dir, '%d.txt' % i), 'w') as f:
+            f.write(article)
+
+        down_params.append({
+            'url': root + mp3_url,
+            'path': '%d.mp3' % i,
+        })
+        print(k + 1, '/', N, end='\r')
+
+    json.dump(down_params, open(
+        os.path.join(FLAGS.output_dir, 'down_params.json'),
+        'w'))
