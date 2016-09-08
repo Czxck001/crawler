@@ -7,12 +7,17 @@ import requests
 
 
 def down(url, path):
-    with open(path, "wb") as code:
-        code.write(requests.get(url).content)
-    print(url, '->', path, 'finished')
+    if os.path.isfile(path):
+        print(path, 'already exists')
+    else:
+        with open(path, "wb") as code:
+            code.write(requests.get(url).content)
+        print(url, '->', path, 'finished')
 
 
 def multi_down(params, outdir):
+    if not os.path.isdir(outdir):
+        os.mkdir(outdir)
     for param in params:
         param['path'] = os.path.join(outdir, param['path'])
     pool = Pool()
