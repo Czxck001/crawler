@@ -17,18 +17,27 @@ article_root = root + r'/article/'
 async def article_page(session, page_url):
     ''' Return article text and recitation audio url
     '''
-    while True:
-        async with session.get(page_url) as response:
-            if response.status >= 400:
-                print('Http error %s' % response.status)
-                await asyncio.sleep(100)
-                continue
-            else:
-                html = await response.text()
-                break
+    html = None
+    for _ in range(10):
+        try:
+            print("fetching %s" % page_url)
+            async with session.get(page_url, timeout=10) as response:
+                if response.status >= 400:
+                    print('Http error %s' % response.status)
+                    await asyncio.sleep(1)
+                    continue
+                else:
+                    html = await response.text()
+                    break
+        except asyncio.TimeoutError:
+            print('%s Timeout, retry.' % page_url)
+        except aiohttp.errors.ClientResponseError:
+            print('aiohttp.errors.ClientResponseError %s' % page_url)
+        except Exception as e:
+            raise
 
-    finding = re.findall(r'<div class="not-found">', html)
-    if finding:  # page not found
+    # page cannot be accessed or not found
+    if not html or re.findall(r'<div class="not-found">', html):
         return None, None
 
     finding = re.findall(
@@ -96,7 +105,8 @@ async def produce(session, article_index, queue):
         session, article_root + '%d/' % article_index)
     if not article or not mp3_url:
         print('article %d: page not found')
-    print('article %d: finished comprehension' % article_index)
+        return
+    print('article %d: dumped' % article_index)
     await queue.put((article_index, article, mp3_url))
 
 
@@ -113,6 +123,9 @@ async def consume(queue, outdir):
 
     while True:
         article_index, article, mp3_url = await queue.get()
+        print('article_index', article_index)
+        if article_index == 'finished':
+            return
         with open(os.path.join(outdir, '%d.txt' % article_index), 'w') as f:
             f.write(article)
 
@@ -122,7 +135,7 @@ async def consume(queue, outdir):
             'path': '%d.mp3' % article_index,
         })
         json.dump(down, open(down_path, 'w'), indent=4)
-        print('Dumped %s' % mp3_url)
+        # print('Dumped %s' % mp3_url)
 
 
 if __name__ == '__main__':
@@ -154,4 +167,6 @@ if __name__ == '__main__':
 
         # run until all tasks done
         loop.run_until_complete(asyncio.wait(tasks))
+        asyncio.ensure_future(queue.put(('finished', None, None)), loop=loop)
+        loop.run_until_complete(consumer)
     loop.close()
