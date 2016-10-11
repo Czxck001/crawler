@@ -20,6 +20,7 @@ async def article_page(session, page_url):
     while True:
         async with session.get(page_url) as response:
             if response.status >= 400:
+                print('Http error %s' % response.status)
                 await asyncio.sleep(100)
                 continue
             else:
@@ -88,7 +89,9 @@ async def article_page(session, page_url):
     return article, mp3_url
 
 
-async def reader(session, article_index, queue):
+async def produce(session, article_index, queue):
+    ''' Put the parsed (article, mp3_url) in the queue
+    '''
     article, mp3_url = await article_page(
         session, article_root + '%d/' % article_index)
     if not article or not mp3_url:
@@ -97,7 +100,9 @@ async def reader(session, article_index, queue):
     await queue.put((article_index, article, mp3_url))
 
 
-async def writer(queue, outdir):
+async def consume(queue, outdir):
+    ''' Pop article and url of mp3 and dump'em into file
+    '''
     if not os.path.isdir(outdir):
         os.mkdir(outdir)
 
@@ -141,9 +146,12 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
 
     queue = asyncio.Queue()
-    asyncio.ensure_future(writer(queue, FLAGS.outdir), loop=loop)
     with aiohttp.ClientSession(loop=loop) as session:
-        # use asyncio.gather to bind tasks together
-        reading = asyncio.gather(*[asyncio.ensure_future(
-            reader(session, i, queue)) for i in indexes], loop=loop)
-        loop.run_until_complete(reading)
+        consumer = asyncio.ensure_future(
+            consume(queue, FLAGS.outdir), loop=loop)
+        tasks = [asyncio.ensure_future(
+            produce(session, i, queue), loop=loop) for i in indexes]
+
+        # run until all tasks done
+        loop.run_until_complete(asyncio.wait(tasks))
+    loop.close()
