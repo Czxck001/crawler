@@ -23,6 +23,7 @@ def multi_down(params, outdir):
     pool = Pool()
     pool.map(lambda param: down(**param), params)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Downloader')
     parser.add_argument('-i', '--input',
