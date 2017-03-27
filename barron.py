@@ -1,6 +1,7 @@
 ''' Grab the Barron 800 high-frequency word list
 '''
 import re
+import json
 import requests
 
 barron_url = r'https://quizlet.com/6876275/'\
@@ -28,9 +29,14 @@ pattern = re.compile(
 def parse_wordlist(url):
     html = requests.get(url).text
     results = pattern.findall(html)
-    return [(word.lower(), defi.lower())
-            for word, defi in results]
+    return [
+        {
+            'word': word.lower(),
+            'definition': defi.lower()
+        }
+        for word, defi in results
+    ]
 
 
 if __name__ == '__main__':
-    print(parse_wordlist(barron_url))
+    print(json.dumps(parse_wordlist(barron_url), indent=4))
